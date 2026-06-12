@@ -532,6 +532,7 @@
         }
 
  // Sincronización Automática con Taltura (CSV externo)
+// Sincronización Automática con Taltura (CSV externo)
 async function fetchCSVFromGitHub() {
     // URL del CSV generado por Moodle/Taltura
     const CSV_URL = 'https://taltura.org/recursos/dashboard.csv';
@@ -541,13 +542,15 @@ async function fetchCSVFromGitHub() {
     try {
         // Intentar leer directamente desde la URL externa
         try {
-            response = await fetch(`${CSV_URL}?t=${Date.now()}`); // query param para evitar caché
+            response = await fetch(`${CSV_URL}?t=${Date.now()}`, {
+                redirect: 'follow',
+                cache: 'no-store'
+            });
         } catch (e) {
             console.warn(`No se pudo leer el archivo en la URL externa: ${CSV_URL}`, e);
         }
 
-        
-             // BLOQUE DE DIAGNÓSTICO (para ver qué pasa realmente)
+        // BLOQUE DE DIAGNÓSTICO
         if (!response) {
             console.error("[DEBUG TALTURA] No se obtuvo respuesta del servidor de Taltura.");
         } else {
@@ -559,14 +562,10 @@ async function fetchCSVFromGitHub() {
                 "| redirected:",
                 response.redirected
             );
-        }   
-        
-        
+        }
 
-        
         if (!response || !response.ok) {
             console.warn("No se pudo obtener 'dashboard.csv' desde Taltura. Usando datos muestra.");
-            // Mostrar banner opcional de modo demo
             document.getElementById('github-sync-banner').classList.remove('hidden');
             loadDemoData(true);
             return;
@@ -579,11 +578,6 @@ async function fetchCSVFromGitHub() {
             cutoffDate = formatHeaderDate(new Date(lastModHeader));
         }
 
-        
-        
-        
-        
-        
         const csvText = await response.text();
         const papa = window.Papa;
 
@@ -599,7 +593,6 @@ async function fetchCSVFromGitHub() {
             complete: function(results) {
                 try {
                     if (results.data && results.data.length > 0) {
-                        // Saneamiento de las columnas del CSV
                         const sanitizedData = results.data.map(row => {
                             const cleanRow = {};
                             for (let key in row) {
@@ -630,7 +623,6 @@ async function fetchCSVFromGitHub() {
         console.error("Error global en el fetch de sincronización:", globalErr);
         loadDemoData(true);
     } finally {
-        // Bloque finally: Garantiza que la pantalla de carga se oculte sin importar el resultado
         hideGlobalLoader();
     }
 }
