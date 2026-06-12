@@ -85,18 +85,17 @@
         <div class="bg-white p-6 rounded-2xl shadow-xl flex flex-col items-center gap-4 max-w-xs text-center">
             <div class="w-12 h-12 border-4 border-brand-200 border-t-brand-600 rounded-full animate-spin"></div>
             <div>
-                <p class="font-bold text-slate-900 text-sm">Sincronizando con GitHub</p>
-                <p class="text-xs text-slate-500 mt-1">Obteniendo archivo de datos 'data.csv' y renderizando métricas...</p>
-            </div>
+ <p class="font-bold text-slate-900 text-sm">Sincronizando con Taltura</p>
+<p class="text-xs text-slate-500 mt-1">Obteniendo archivo de datos 'dashboard.csv' desde Taltura y renderizando métricas...</p>            </div>
         </div>
     </div>
 
     <!-- Banner Informativo de Carga en modo Local/Demo de Respaldo -->
     <div id="github-sync-banner" class="hidden bg-gradient-to-r from-amber-600 to-orange-700 text-white py-2 px-4 text-center text-xs font-semibold relative">
-        <span class="inline-flex items-center gap-1.5">
-            <span class="w-2 h-2 rounded-full bg-white animate-ping"></span>
-            Modo demostración: No se encontró 'data.csv' en tu repositorio. Sube tu reporte CSV a tu rama de GitHub con el nombre <code class="bg-black/20 px-1 rounded">data.csv</code> para que se sincronice automáticamente.
-        </span>
+<span class="inline-flex items-center gap-1.5">
+    <span class="w-2 h-2 rounded-full bg-white animate-ping"></span>
+    Modo demostración: No se pudo obtener el CSV desde Taltura. Se están usando datos de ejemplo.
+</span>
     </div>
 
     <!-- Header Principal -->
@@ -532,94 +531,86 @@
             }
         }
 
-        // Sincronización Automática con GitHub
-        async function fetchCSVFromGitHub() {
-            // Rutas que buscará en tu repositorio
-            const filePaths = [
-                'data.csv',
-                'completion-programa_de_igualdad_salarial_y_de_g__nero_2025-20260610_2045-comma_separated.csv'
-            ];
-            
-            let response = null;
-            
-            try {
-                for (const path of filePaths) {
-                    try {
-                        const res = await fetch(path);
-                        if (res.ok) {
-                            response = res;
-                            break;
-                        }
-                    } catch (e) {
-                        console.warn(`No se pudo leer el archivo en la ruta local: ${path}`);
-                    }
-                }
+ // Sincronización Automática con Taltura (CSV externo)
+async function fetchCSVFromGitHub() {
+    // URL del CSV generado por Moodle/Taltura
+    const CSV_URL = 'https://taltura.org/recursos/dashboard.csv';
 
-                if (!response) {
-                    // Si el archivo no existe en el repositorio, cargamos datos muestra de respaldo y mostramos sugerencia
-                    console.warn("No se encontró 'data.csv' en GitHub. Usando datos muestra.");
-                    document.getElementById('github-sync-banner').classList.remove('hidden');
-                    loadDemoData(true);
-                    return;
-                }
+    let response = null;
 
-                // Intentar leer la fecha del push desde las cabeceras HTTP del servidor
-                let cutoffDate = "10 de junio de 2026";
-                const lastModHeader = response.headers.get('Last-Modified');
-                if (lastModHeader) {
-                    cutoffDate = formatHeaderDate(new Date(lastModHeader));
-                }
+    try {
+        // Intentar leer directamente desde la URL externa
+        try {
+            response = await fetch(`${CSV_URL}?t=${Date.now()}`); // query param para evitar caché
+        } catch (e) {
+            console.warn(`No se pudo leer el archivo en la URL externa: ${CSV_URL}`, e);
+        }
 
-                const csvText = await response.text();
-                const papa = window.Papa;
-                
-                if (!papa) {
-                    console.error("Librería PapaParse no disponible.");
-                    loadDemoData(true);
-                    return;
-                }
+        if (!response || !response.ok) {
+            console.warn("No se pudo obtener 'dashboard.csv' desde Taltura. Usando datos muestra.");
+            // Mostrar banner opcional de modo demo
+            document.getElementById('github-sync-banner').classList.remove('hidden');
+            loadDemoData(true);
+            return;
+        }
 
-                papa.parse(csvText, {
-                    header: true,
-                    skipEmptyLines: true,
-                    complete: function(results) {
-                        try {
-                            if (results.data && results.data.length > 0) {
-                                // Saneamiento de las columnas del CSV
-                                const sanitizedData = results.data.map(row => {
-                                    const cleanRow = {};
-                                    for (let key in row) {
-                                        if (row.hasOwnProperty(key)) {
-                                            const sanitizedKey = key.replace(/^\uFEFF/, '').trim();
-                                            cleanRow[sanitizedKey] = row[key];
-                                        }
-                                    }
-                                    return cleanRow;
-                                });
+        // Intentar leer la fecha del push desde las cabeceras HTTP del servidor
+        let cutoffDate = "10 de junio de 2026";
+        const lastModHeader = response.headers.get('Last-Modified');
+        if (lastModHeader) {
+            cutoffDate = formatHeaderDate(new Date(lastModHeader));
+        }
 
-                                processUploadedData(sanitizedData, cutoffDate);
-                            } else {
-                                loadDemoData(true);
+        const csvText = await response.text();
+        const papa = window.Papa;
+
+        if (!papa) {
+            console.error("Librería PapaParse no disponible.");
+            loadDemoData(true);
+            return;
+        }
+
+        papa.parse(csvText, {
+            header: true,
+            skipEmptyLines: true,
+            complete: function(results) {
+                try {
+                    if (results.data && results.data.length > 0) {
+                        // Saneamiento de las columnas del CSV
+                        const sanitizedData = results.data.map(row => {
+                            const cleanRow = {};
+                            for (let key in row) {
+                                if (row.hasOwnProperty(key)) {
+                                    const sanitizedKey = key.replace(/^\uFEFF/, '').trim();
+                                    cleanRow[sanitizedKey] = row[key];
+                                }
                             }
-                        } catch (err) {
-                            console.error("Fallo parseando contenido CSV:", err);
-                            loadDemoData(true);
-                        }
-                    },
-                    error: function(err) {
-                        console.error("Error PapaParse:", err);
+                            return cleanRow;
+                        });
+
+                        processUploadedData(sanitizedData, cutoffDate);
+                    } else {
                         loadDemoData(true);
                     }
-                });
-
-            } catch (globalErr) {
-                console.error("Error global en el fetch de sincronización:", globalErr);
+                } catch (err) {
+                    console.error("Fallo parseando contenido CSV:", err);
+                    loadDemoData(true);
+                }
+            },
+            error: function(err) {
+                console.error("Error PapaParse:", err);
                 loadDemoData(true);
-            } finally {
-                // Bloque finally: Garantiza que la pantalla de carga se oculte sin importar el resultado
-                hideGlobalLoader();
             }
-        }
+        });
+
+    } catch (globalErr) {
+        console.error("Error global en el fetch de sincronización:", globalErr);
+        loadDemoData(true);
+    } finally {
+        // Bloque finally: Garantiza que la pantalla de carga se oculte sin importar el resultado
+        hideGlobalLoader();
+    }
+}
 
         function processUploadedData(data, cutoffDateValue) {
             window.rawDataset = data;
