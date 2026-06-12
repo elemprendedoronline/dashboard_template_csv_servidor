@@ -546,6 +546,24 @@ async function fetchCSVFromGitHub() {
             console.warn(`No se pudo leer el archivo en la URL externa: ${CSV_URL}`, e);
         }
 
+        
+             // BLOQUE DE DIAGNÓSTICO (para ver qué pasa realmente)
+        if (!response) {
+            console.error("[DEBUG TALTURA] No se obtuvo respuesta del servidor de Taltura.");
+        } else {
+            console.log(
+                "[DEBUG TALTURA] URL final:",
+                response.url,
+                "| status:",
+                response.status,
+                "| redirected:",
+                response.redirected
+            );
+        }   
+        
+        
+
+        
         if (!response || !response.ok) {
             console.warn("No se pudo obtener 'dashboard.csv' desde Taltura. Usando datos muestra.");
             // Mostrar banner opcional de modo demo
@@ -561,6 +579,11 @@ async function fetchCSVFromGitHub() {
             cutoffDate = formatHeaderDate(new Date(lastModHeader));
         }
 
+        
+        
+        
+        
+        
         const csvText = await response.text();
         const papa = window.Papa;
 
